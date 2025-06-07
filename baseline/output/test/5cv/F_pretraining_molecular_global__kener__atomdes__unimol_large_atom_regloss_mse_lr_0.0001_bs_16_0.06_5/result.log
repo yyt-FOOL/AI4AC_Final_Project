@@ -1,0 +1,12 @@
+metric of ../output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5/0/cv_seed_42_fold_0_valid.out.pkl
+: R2: 0.9015, MAE: 6.1357, MSE: 128.5007, RMSE: 11.3358
+metric of ../output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5/2/cv_seed_42_fold_2_valid.out.pkl
+: R2: 0.9110, MAE: 6.6086, MSE: 116.1233, RMSE: 10.7761
+metric of ../output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5/1/cv_seed_42_fold_1_valid.out.pkl
+: R2: 0.9074, MAE: 6.6457, MSE: 120.8004, RMSE: 10.9909
+metric of ../output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5/4/cv_seed_42_fold_4_valid.out.pkl
+: R2: 0.9005, MAE: 6.6737, MSE: 129.8390, RMSE: 11.3947
+metric of ../output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5/3/cv_seed_42_fold_3_valid.out.pkl
+: R2: 0.9098, MAE: 6.3326, MSE: 117.7063, RMSE: 10.8493
+metric of mean
+: R2: 0.9223, MAE: 5.4857, MSE: 101.3773, RMSE: 10.0686
