@@ -414,6 +414,7 @@ class NodeClassificationHead(nn.Module):
 
     def forward(self, features, **kwargs):
         x = features
+        print(x.shape)
         x = self.dropout(x)
         x = self.dense(x)
         x = self.activation_fn(x)

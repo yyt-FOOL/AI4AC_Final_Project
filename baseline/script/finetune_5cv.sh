@@ -25,7 +25,7 @@ atom_des=0
 
 global_batch_size=`expr $batch_size \* $n_gpu \* $update_freq`
 ### modified the save directory
-save_dir="../../../output_data/baseline/output/finetune/5cv/${selected_atom}_${weight_name}_global_${11}_kener_${12}_atomdes_${13}_${arch}_${loss}_lr_${lr}_bs_${global_batch_size}_${warmup}_${epoch}"
+save_dir="../../../output_data/baseline/finetune/5cv/${selected_atom}_${weight_name}_global_${11}_kener_${12}_atomdes_${13}_${arch}_${loss}_lr_${lr}_bs_${global_batch_size}_${warmup}_${epoch}"
 if [ -d "${save_dir}" ]; then
     rm -rf ${save_dir}
     echo "Folder remove at: ${save_dir}"

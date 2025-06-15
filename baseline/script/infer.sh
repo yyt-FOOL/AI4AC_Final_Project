@@ -1,6 +1,6 @@
 data_path="../data/test" # replace to your data path
-finetune_model_dir="../../../output_data/baseline/output/finetune/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5"
-save_dir="../../../output_data/baseline/output/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5"
+finetune_model_dir="../../../output_data/baseline/finetune/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5"
+save_dir="../../../output_data/baseline/test/5cv/F_pretraining_molecular_global__kener__atomdes__unimol_large_atom_regloss_mse_lr_0.0001_bs_16_0.06_5"
 if [ -d "${save_dir}" ]; then
     rm -rf ${save_dir}
     echo "Folder remove at: ${save_dir}"

@@ -469,60 +469,12 @@ class GraphAttentionLayer(nn.Module):
         zero_vec = -9e15 * torch.ones_like(e)
         attention = torch.where(adj > 0, e, zero_vec)
         invalid_rows = (adj.sum(dim=-1) == 0)  # [B, N]
-        attention[invalid_rows] = 0  # 将该行所有 attention 置为 0
+        attention[invalid_rows] = 0  
         attention = F.softmax(attention, dim=-1)  # softmax over neighbors
         attention = self.dropout(attention)
         h_prime = torch.matmul(attention, Wh)  # [B, N, out_dim]
 
         return h_prime
-
-# class NodeClassificationHeadWithGAT(nn.Module):
-#     """Head for node-level classification tasks."""
-
-#     def __init__(
-#         self,
-#         input_dim,
-#         inner_dim,
-#         num_classes,
-#         activation_fn,
-#         pooler_dropout,
-#         gat_layer
-#     ):
-#         super().__init__()
-#         self.gat = gat_layer(input_dim,input_dim)
-#         self.dense = nn.Linear(input_dim, inner_dim)
-#         self.activation_fn = utils.get_activation_fn(activation_fn)
-#         self.dropout = nn.Dropout(p=pooler_dropout)
-#         self.out_proj = nn.Linear(inner_dim, num_classes)
-
-#     def forward(self,features, adj=None, select_atom=None,**kwargs):
-#         """
-#         features: [B, N, input_dim]
-#         adj: [B, N, N]
-#         select_atom: [B, N] bool mask
-#         """
-#         aggregated_features = self.gat(features, adj) # 这里需要自己写一层聚合
-
-#         if select_atom is not None:
-#             print(f"DEBUG_GAT: Inside head - select_atom shape: {select_atom.shape}")
-#             print(f"DEBUG_GAT: Inside head - select_atom dtype: {select_atom.dtype}")
-#             # 再次确认 True 的数量，这是最关键的
-#             print(f"DEBUG_GAT: Inside head - Number of True values in select_atom: {select_atom.sum()}")
-#             features_for_mlp = aggregated_features[select_atom==1]
-#             print(f"DEBUG_GAT: Inside head - features_for_mlp shape (after filter): {features_for_mlp.shape}")
-#             features = aggregated_features[select_atom==1]
-#         else:
-#             features = aggregated_features
-#             print(f"DEBUG_GAT: Inside head - NO select_atom filter applied, features_for_mlp shape: {features_for_mlp.shape}")
-
-#         x = features
-#         x = self.dropout(x)
-#         x = self.dense(x)
-#         x = self.activation_fn(x)
-#         x = self.dropout(x)
-#         x = self.out_proj(x)
-#         print(f"DEBUG_GAT: Final output x shape (from NodeClassificationHeadWithGAT): {x.shape}")
-#         return x
 
 class NodeClassificationHeadWithGAT(nn.Module):
     """Head for node-level classification tasks with GAT aggregation."""
@@ -563,11 +515,13 @@ class NodeClassificationHeadWithGAT(nn.Module):
             select_atom = select_atom.view(B * N).bool()
             if select_atom.sum() == 0:
                 raise RuntimeError("select_atom mask selected 0 nodes. Check your input.")
-            features_for_mlp = aggregated_features[select_atom]
+            features_for_mlp = aggregated_features[select_atom==1]
         else:
             features_for_mlp = aggregated_features  # 全部节点用于分类
 
         # Step 3: MLP 分类
+        x=features_for_mlp
+        print(x.shape)
         x = self.dropout(features_for_mlp)
         x = self.dense(x)
         x = self.activation_fn(x)
