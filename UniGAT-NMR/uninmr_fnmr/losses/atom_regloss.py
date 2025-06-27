@@ -49,6 +49,7 @@ class AtomRegMSELoss(UnicoreLoss):
                 "sample_size": sample_size,
                 "matid": sample["matid"],
                 "num_task": self.args.num_classes,
+                # "node_attention":  (net_output[0][1]).detach().cpu().float()
                 # "encoder_rep": net_output[6],
             }
             # print("predict_output", self.target_scaler.inverse_transform(net_output[0].view(-1, self.args.num_classes).data.cpu()))

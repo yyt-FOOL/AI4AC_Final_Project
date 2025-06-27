@@ -250,6 +250,7 @@ class UniMatModel(BaseUnicoreModel):
         encoder_distance = None
         encoder_coord = None
         lattice = None
+        node_attention=None
 
         if not features_only:
             if self.args.masked_token_loss > 0:
@@ -284,7 +285,7 @@ class UniMatModel(BaseUnicoreModel):
                 head = self.node_classification_heads[classification_head_name]
                 if isinstance(head, NodeClassificationHeadWithGAT):
                     print("1")
-                    logits = head(model_input, adj, select_atom)
+                    logits= head(model_input, adj, select_atom)
                 else:
                     logits = head(model_input[select_atom == 1])
                 ################################################################################
@@ -466,13 +467,12 @@ class GraphAttentionLayer(nn.Module):
         e = self.leakyrelu(torch.matmul(torch.cat([Wh_i, Wh_j], dim=-1), self.a).squeeze(-1))  # [B, N, N]
 
         # mask with adjacency
-        zero_vec = -9e15 * torch.ones_like(e)
-        attention = torch.where(adj > 0, e, zero_vec)
+        attention = torch.where(adj>0, e, torch.full_like(e, float('-inf')))
         invalid_rows = (adj.sum(dim=-1) == 0)  # [B, N]
         attention[invalid_rows] = 0  
         attention = F.softmax(attention, dim=-1)  # softmax over neighbors
-        attention = self.dropout(attention)
-        h_prime = torch.matmul(attention, Wh)  # [B, N, out_dim]
+        # attention = self.dropout(attention)
+        h_prime = torch.matmul(attention,Wh)+Wh  # [B,N, out_dim]
 
         return h_prime
 
@@ -505,23 +505,28 @@ class NodeClassificationHeadWithGAT(nn.Module):
             logits: Tensor of shape [M, num_classes] where M = number of selected nodes
         """
         # Step 1: GAT 聚合
-        aggregated_features = self.gat(features, adj)  # -> [B, N, D]
+        aggregated_features= self.gat(features, adj)  # -> [B, N, D]
 
         # Step 2: 处理 select_atom mask
         B, N, D = aggregated_features.size()
         aggregated_features = aggregated_features.view(B * N, D)
+        # attention=attention.view(B * N, N)
 
         if select_atom is not None:
             select_atom = select_atom.view(B * N).bool()
             if select_atom.sum() == 0:
                 raise RuntimeError("select_atom mask selected 0 nodes. Check your input.")
             features_for_mlp = aggregated_features[select_atom==1]
+            # print(f"The shape of features for mlp:{features_for_mlp.shape}")
+            # selected_attention = attention[select_atom==1]
+            # print(f"The shape of  selected attention:{selected_attention.shape}")
+            
         else:
-            features_for_mlp = aggregated_features  # 全部节点用于分类
+            features_for_mlp = aggregated_features  
+            # selected_attention = attention
 
         # Step 3: MLP 分类
         x=features_for_mlp
-        print(x.shape)
         x = self.dropout(features_for_mlp)
         x = self.dense(x)
         x = self.activation_fn(x)

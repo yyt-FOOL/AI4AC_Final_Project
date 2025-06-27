@@ -11,7 +11,8 @@ from rdkit.Chem import rdmolops
 random.seed(42)
 
 # === CONFIG ===
-CSV_PATH = "FNMR.csv"  
+train_CSV_PATH = "train.csv"  
+test_CSV_PATH = "test.csv"  
 FINETUNE_DATA_SAVE_DIR = "../UniGAT-NMR/data/finetune"
 TEST_DATA_SAVE_DIR = "../UniGAT-NMR/data/test"
 TRAIN_LMDB = os.path.join(FINETUNE_DATA_SAVE_DIR, "train.lmdb")
@@ -24,16 +25,16 @@ F_SHIFT_MIN, F_SHIFT_MAX = -250, 100   # Valid ^19F NMR chemical shift range (pp
 os.makedirs(FINETUNE_DATA_SAVE_DIR, exist_ok=True)
 os.makedirs(TEST_DATA_SAVE_DIR, exist_ok=True)
 
-data = pd.read_csv(CSV_PATH)
+train_data = pd.read_csv(train_CSV_PATH)
+test_data = pd.read_csv(test_CSV_PATH)
 
-samples = []
-
+train_samples = []
 def get_adjacency_matrix(mol):
     n_atoms = mol.GetNumAtoms()
     adj = rdmolops.GetAdjacencyMatrix(mol)
     return adj.astype(np.int64)  # shape (n_atoms, n_atoms)
 
-for i, row in tqdm(data.iterrows(), total=len(data)):
+for i, row in tqdm(train_data.iterrows(), total=len(train_data)):
     smiles = row['SMILES']
     shift = row['shift_value']
 
@@ -73,7 +74,66 @@ for i, row in tqdm(data.iterrows(), total=len(data)):
     except:
         inchikey = None
 
-    samples.append({
+    train_samples.append({
+        'atoms': atoms,
+        'coordinates': coordinates,
+        'atoms_target': atoms_target,
+        'atoms_target_mask': atoms_target_mask,
+        'smiles': smiles,
+        'db_id': f"fluoride_{i}",
+        'mol': mol,
+        'inchikey': inchikey,
+        'adjacency': adjacency
+    })
+
+test_samples = []
+
+def get_adjacency_matrix(mol):
+    n_atoms = mol.GetNumAtoms()
+    adj = rdmolops.GetAdjacencyMatrix(mol)
+    return adj.astype(np.int64)  # shape (n_atoms, n_atoms)
+
+for i, row in tqdm(test_data.iterrows(), total=len(test_data)):
+    smiles = row['SMILES']
+    shift = row['shift_value']
+
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        continue
+
+    mol = Chem.AddHs(mol)
+    res = AllChem.EmbedMolecule(mol, randomSeed=42)
+    if res != 0:
+        continue
+    try:
+        AllChem.MMFFOptimizeMolecule(mol)
+    except:
+        continue
+
+    conf = mol.GetConformer()
+    atoms = [atom.GetSymbol() for atom in mol.GetAtoms()]
+    coordinates = np.array(conf.GetPositions(), dtype=np.float32)
+    atoms_target = np.zeros(len(atoms), dtype=np.float32)
+    atoms_target_mask = np.zeros(len(atoms), dtype=np.int64)
+    adjacency = get_adjacency_matrix(mol)
+
+    f_indices = [i for i, a in enumerate(atoms) if a == 'F']
+    if len(f_indices) == 0:
+        continue
+
+    if not (F_SHIFT_MIN <= shift <= F_SHIFT_MAX):
+        continue
+
+    for idx in f_indices:
+        atoms_target[idx] = float(shift)
+        atoms_target_mask[idx] = 1
+
+    try:
+        inchikey = Chem.MolToInchiKey(mol)
+    except:
+        inchikey = None
+
+    test_samples.append({
         'atoms': atoms,
         'coordinates': coordinates,
         'atoms_target': atoms_target,
@@ -86,19 +146,16 @@ for i, row in tqdm(data.iterrows(), total=len(data)):
     })
 
 # === SPLIT ===
-random.shuffle(samples)
-total = len(samples)
+random.shuffle(train_samples)
+total = len(train_samples)
 train_cut = int(total * TRAIN_RATIO)
-train_full = samples[:train_cut]
-test_data = samples[train_cut:]
+train_data = train_samples[:train_cut]
+valid_data = train_samples[train_cut:]
 
-valid_cut = int(len(train_full) * VALID_RATIO)
-valid_data = train_full[:valid_cut]
-train_data = train_full[valid_cut:]
-
-print(f"Processed samples: {total} | Train: {len(train_data)} | Valid: {len(valid_data)} | Test: {len(test_data)}")
+print(f"Processed train samples: {total} | Train: {len(train_data)} | Valid: {len(valid_data)}")
+print(f"Processed test samples: {len(test_samples)} Test: {len(test_samples)}")
 
 # === WRITE ===
 write_lmdb(TRAIN_LMDB, train_data)
 write_lmdb(VALID_LMDB, valid_data)
-write_lmdb(TEST_LMDB, test_data)
+write_lmdb(TEST_LMDB, test_samples)

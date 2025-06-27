@@ -1,6 +1,6 @@
 data_path="../data/finetune" # replace to your data path
 n_gpu=1  
-MASTER_PORT=33332
+MASTER_PORT=33333
 num_classes=1
 weight_path='../../../../weights'  # replace to your pre-training ckpt path
 weight_name='pretraining_molecular'

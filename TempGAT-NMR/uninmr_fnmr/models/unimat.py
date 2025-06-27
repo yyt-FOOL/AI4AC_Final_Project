@@ -250,9 +250,9 @@ class UniMatModel(BaseUnicoreModel):
         encoder_distance = None
         encoder_coord = None
         lattice = None
+        entropy = None
 
         if not features_only:
-            entropy = None
             if self.args.masked_token_loss > 0:
                 logits = self.lm_head(encoder_rep, encoder_masked_tokens)
             if self.args.masked_coord_loss > 0:
@@ -285,7 +285,7 @@ class UniMatModel(BaseUnicoreModel):
                 head = self.node_classification_heads[classification_head_name]
                 if isinstance(head, NodeClassificationHeadWithGAT):
                     print("1")
-                    logits,entropy= head(model_input, adj, select_atom)
+                    logits= head(model_input, adj, select_atom)
                 else:
                     logits = head(model_input[select_atom == 1])
                 ################################################################################
@@ -296,7 +296,7 @@ class UniMatModel(BaseUnicoreModel):
             for name, head in self.classification_heads.items():
                 logits[name] = head(model_input)
 
-        return (logits, entropy), encoder_distance, encoder_coord, lattice, x_norm, delta_encoder_pair_rep_norm
+        return logits, encoder_distance, encoder_coord, lattice, x_norm, delta_encoder_pair_rep_norm
 
     def register_classification_head(
         self, name, num_classes=None, inner_dim=None, extra_dim=0, **kwargs
@@ -466,37 +466,22 @@ class GraphAttentionLayer(nn.Module):
         Wh_i = Wh.unsqueeze(2).repeat(1, 1, N, 1)  # [B, N, N, out_dim]
         Wh_j = Wh.unsqueeze(1).repeat(1, N, 1, 1)  # [B, N, N, out_dim]
         e = self.leakyrelu(torch.matmul(torch.cat([Wh_i, Wh_j], dim=-1), self.a).squeeze(-1))  # [B, N, N]
-        # mask 无连接边：置为 -inf（近似）
-        print(f"The shape of adj:{adj.shape}")
-        print(f"adj:{adj[0,:,:]}")
-        print(f"The shape of e:{e.shape}")
-        print(f"e:{e[0,:,:]}")
-        adj = adj.clone()
-        for b in range(B):
-            adj[b].fill_diagonal_(1)
-        mask = (adj > 0)
-        attention_logits = torch.where(mask, e, torch.full_like(e, float('-inf')))
-        print(f"attention_logits.shape:{attention_logits.shape}")
-        print(f"attention_logits:{attention_logits[0,:,:]}")
+        attention_logits = torch.where(adj>0, e, torch.full_like(e, float('-inf')))
 
-        # # 特殊情况处理：无邻居节点时设为 0
-        # invalid_rows = float('-inf')  # [B, N]
-        # print(f"invalid_rows:{invalid_rows.shape}")
-        # attention_logits[invalid_rows] = 0
-        # print(f"attention_logits_processed.shape:{attention_logits.shape}")
-        # print(f"attention_logits_processed:{attention_logits[0,:,:]}")
+        invalid_rows = (adj.sum(dim=-1) == 0)  # [B, N]
+        attention_logits[invalid_rows] = 0
 
         # 初始 softmax 注意力（用于计算信息熵）
         attention_logits = F.softmax(attention_logits, dim=-1)  # [B, N, N]
-        print(f"attention_logits_softmax.shape:{attention_logits.shape}")
-        print(f"attention_logits_softmax:{attention_logits[0,:,:]}")
+        # print(f"attention_logits_softmax.shape:{attention_logits.shape}")
+        # print(f"attention_logits_softmax:{attention_logits[0,:,:]}")
 
         # === Step 1: 熵计算（节点的不确定性）===
         eps = 1e-6
         attention_clamped = attention_logits.clamp(min=eps, max=1.0)
         entropy = -torch.sum(attention_clamped * torch.log(attention_clamped), dim=-1)
-        print(f"entropy.shape:{entropy.shape}")
-        print(f"entropy:{entropy[0,:]}")
+        # print(f"entropy.shape:{entropy.shape}")
+        # print(f"entropy:{entropy[0,:]}")
 
         # === Step 2: 自适应温度调节 T_i = 1 + beta * entropy_i ===
         temperature = 1.0 + self.beta * entropy  # [B, N]
@@ -504,19 +489,18 @@ class GraphAttentionLayer(nn.Module):
         temperature = temperature.unsqueeze(-1)  # [B, N, 1]
 
         # === Step 3: 温度缩放 logits 再计算 attention ===
-        attention_logits = attention_logits - attention_logits.max(dim=-1, keepdim=True)[0]  # 数值稳定性
+        attention_logits = attention_logits - attention_logits.max(dim=-1, keepdim=True)[0]  
         attention_logits = attention_logits / temperature
-        print(f"attention_logits_T.shape:{attention_logits.shape}")
-        print(f"attention_logits_T:{attention_logits[0,:,:]}")
+        # print(f"attention_logits_T.shape:{attention_logits.shape}")
+        # print(f"attention_logits_T:{attention_logits[0,:,:]}")
         attention = F.softmax(attention_logits, dim=-1)
-        attention = self.dropout(attention)
-        print(f"attention.shape:{attention.shape}")
-        print(f"attention:{attention[0,:]}")
+        # print(f"attention.shape:{attention.shape}")
+        # print(f"attention:{attention[0,:]}")
 
         # === Step 4: 加权聚合邻居特征 ===
-        h_prime = torch.matmul(attention, Wh)  # [B, N, out_dim]
+        h_prime = torch.matmul(attention, Wh)+Wh  # [B, N, out_dim]
 
-        return h_prime,entropy
+        return h_prime
 
 
 class NodeClassificationHeadWithGAT(nn.Module):
@@ -548,33 +532,33 @@ class NodeClassificationHeadWithGAT(nn.Module):
             logits: Tensor of shape [M, num_classes] where M = number of selected nodes
         """
         # Step 1: GAT 聚合
-        aggregated_features,entropy = self.gat(features, adj)  # -> [B, N, D]
+        aggregated_features = self.gat(features, adj)  # -> [B, N, D]
 
         # Step 2: 处理 select_atom mask
         B, N, D = aggregated_features.size()
         aggregated_features = aggregated_features.view(B * N, D)
-        entropy = entropy.view(-1) 
+        # entropy = entropy.view(-1) 
 
         if select_atom is not None:
             select_atom = select_atom.view(B * N).bool()
             if select_atom.sum() == 0:
                 raise RuntimeError("select_atom mask selected 0 nodes. Check your input.")
             features_for_mlp = aggregated_features[select_atom==1]
-            entropy_for_selected = entropy[select_atom==1]
+            # entropy_for_selected = entropy[select_atom==1]
         else:
             features_for_mlp = aggregated_features  # 全部节点用于分类
-            entropy_for_selected = entropy
+            # entropy_for_selected = entropy
     
         # Step 3: MLP 分类
         x=features_for_mlp
-        print(x.shape)
+        # print(x.shape)
         x = self.dropout(features_for_mlp)
         x = self.dense(x)
         x = self.activation_fn(x)
         x = self.dropout(x)
         x = self.out_proj(x)
 
-        return x,entropy_for_selected
+        return x
 
 class NonLinearHead(nn.Module):
     """Head for simple classification tasks."""

@@ -16,17 +16,17 @@ def get_result(filename):
 
     predict = []
     target = []
-    entropy = []
+    # entropy = []
     src_tokens = []
     for item in data:
         predict.extend(item['predict'].reshape(-1).tolist())
         target.extend(item['target'].reshape(-1).tolist())
-        entropy.extend(item['entropy'].reshape(-1).tolist())
+        # entropy.extend(item['entropy'].reshape(-1).tolist())
         # print(item.keys())
         src_token = item["src_token"][item["select_atom"]==1]
         src_token = src_token.detach().cpu().numpy().tolist()
         src_tokens.extend(src_token)
-    return target, predict, src_tokens,entropy
+    return target, predict, src_tokens
 
 def reg_metrics(target, predict):
     r2 = r2_score(target, predict)
@@ -53,27 +53,33 @@ def plot_metrics(target, predict, save_path=None, element="All"):
         plt.savefig(fig_path)
     plt.show()
 
-def plot_entropy_vs_error(target, predict, entropy, save_path=None, element="All"):
-    target = np.array(target)
-    predict = np.array(predict)
-    entropy = np.array(entropy)
+# def plot_entropy_vs_error(target, predict, entropy, save_path=None, element="All"):
+#     target = np.array(target)
+#     predict = np.array(predict)
+#     entropy = np.array(entropy)
 
-    eps = 1e-8
-    relative_error = np.abs(predict - target) / (np.abs(target) + eps)
-   # Spearman correlation
-    corr, p_value = spearmanr(entropy, relative_error)
+#     eps = 1e-8
+#     relative_error = np.abs(predict - target) / (np.abs(target) + eps)
+#     log_relative_error = np.log10(relative_error + eps)
+#     threshold = np.percentile(relative_error, 99)
+#     mask = relative_error < threshold
+#     filtered_entropy = entropy[mask]
+#     filtered_error = log_relative_error[mask]
+# #    # Spearman correlation
+# #     corr, p_value = spearmanr(filtered_entropy, filtered_error)
+#     corr = np.corrcoef(filtered_entropy, filtered_error)[0, 1]
+#     plt.figure(figsize=(8, 6))
+#     plt.scatter(filtered_entropy, filtered_error, alpha=0.5, color='green')
+#     plt.xlabel("Attention Entropy")
+#     plt.ylabel("Log Relative Prediction Error")
+#     plt.title(f"[{element}] Correlation between entropy and relative error: {corr:.4f}")
+#     # plt.title(f"Entropy vs Error ({element})\nSpearman corr={corr:.3f}, p={p_value:.3e}")
 
-    plt.figure(figsize=(8, 6))
-    plt.scatter(entropy, relative_error, alpha=0.5, color='green')
-    plt.xlabel("Attention Entropy")
-    plt.ylabel("Relative Prediction Error")
-    plt.title(f"Entropy vs Error ({element})\nSpearman corr={corr:.3f}, p={p_value:.3e}")
+#     if save_path:
+#         plt.savefig(os.path.join(save_path, f'entropy_vs_error_{element}.png'))
+#     plt.show()
 
-    if save_path:
-        plt.savefig(os.path.join(save_path, f'entropy_vs_error_{element}.png'))
-    plt.show()
-
-    print(f"[{element}] Correlation between entropy and relative error: {corr:.4f}")
+#     print(f"[{element}] Correlation between entropy and relative error: {corr:.4f}")
 
 def main(args):
     dictionary = Dictionary.load(args.dict)
@@ -86,10 +92,10 @@ def main(args):
             if os.path.isdir(folder_path):
                 pkl_files = glob.glob(os.path.join(folder_path, "*.pkl"))
                 filename = pkl_files[0]
-                target, predict, src_tokens,entropy = get_result(filename)
+                target, predict, src_tokens = get_result(filename)
                 all_predict.append(predict)
                 plot_metrics(target, predict, folder_path)
-                plot_entropy_vs_error(target, predict, entropy, folder_path)
+                # plot_entropy_vs_error(target, predict, entropy, folder_path)
                 r2, mae, mse, rmse = reg_metrics(target, predict)
                 print(f'metric of {filename}\n: R2: {r2:.4f}, MAE: {mae:.4f}, MSE: {mse:.4f}, RMSE: {rmse:.4f}')
 
@@ -98,10 +104,10 @@ def main(args):
                     for element in elemenets:
                         element_targets = np.array(target)[np.array(src_tokens)==element]
                         element_predicts = np.array(predict)[np.array(src_tokens)==element]
-                        element_entropy = np.array(entropy)[np.array(src_tokens)==element]
+                        # element_entropy = np.array(entropy)[np.array(src_tokens)==element]
                         r2, mae, mse, rmse = reg_metrics(element_targets, element_predicts)
                         plot_metrics(target, predict, folder_path, dictionary[element])
-                        plot_entropy_vs_error(element_targets, element_predicts, element_entropy, folder_path, dictionary[element])
+                        # plot_entropy_vs_error(element_targets, element_predicts, element_entropy, folder_path, dictionary[element])
                         print(f'metric of {dictionary[element]}\n: R2: {r2:.4f}, MAE: {mae:.4f}, MSE: {mse:.4f}, RMSE: {rmse:.4f}')
 
         if all_predict:
@@ -119,26 +125,26 @@ def main(args):
                     print(f'metric of {dictionary[element]}\n: R2: {r2:.4f}, MAE: {mae:.4f}, MSE: {mse:.4f}, RMSE: {rmse:.4f}')
 
             mean_path = os.path.join(args.path, 'mean.pkl')
-            mean_data = {'target': target, 'predict': mean_predict,'entropy':entropy}
+            mean_data = {'target': target, 'predict': mean_predict}
             with open(mean_path, 'wb') as file:
                 pickle.dump(mean_data, file)
 
     else :
         pkl_files = glob.glob(os.path.join(args.path, "*.pkl"))
         filename = pkl_files[0]
-        target, predict, src_tokens,entropy = get_result(filename)
+        target, predict, src_tokens= get_result(filename)
         r2, mae, mse, rmse = reg_metrics(target, predict)
         print(f'metric of {filename}\n: R2: {r2:.4f}, MAE: {mae:.4f}, MSE: {mse:.4f}, RMSE: {rmse:.4f}')
         plot_metrics(target, predict, args.path)
-        plot_entropy_vs_error(target, mean_predict, entropy, args.path, "Mean")
+        # plot_entropy_vs_error(target, mean_predict, entropy, args.path, "Mean")
         elemenets = set(src_tokens)
         if len(elemenets) > 1:
             for element in elemenets:
                 element_targets = np.array(target)[np.array(src_tokens)==element]
                 element_predicts = np.array(predict)[np.array(src_tokens)==element]
-                element_entropy = np.array(entropy)[np.array(src_tokens)==element]
+                # element_entropy = np.array(entropy)[np.array(src_tokens)==element]
                 r2, mae, mse, rmse = reg_metrics(element_targets, element_predicts)
-                plot_entropy_vs_error(element_targets, element_predicts, element_entropy, args.path, dictionary[element])
+                # plot_entropy_vs_error(element_targets, element_predicts, element_entropy, args.path, dictionary[element])
                 plot_metrics(target, predict, args.path, dictionary[element])
                 print(f'metric of {dictionary[element]}\n: R2: {r2:.4f}, MAE: {mae:.4f}, MSE: {mse:.4f}, RMSE: {rmse:.4f}')
 

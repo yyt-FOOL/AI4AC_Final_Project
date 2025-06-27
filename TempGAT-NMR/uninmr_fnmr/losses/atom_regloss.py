@@ -38,19 +38,19 @@ class AtomRegMSELoss(UnicoreLoss):
         src_token = sample["net_input"]["src_tokens"].view(-1, 1)
         # _mean, _std, _normal_type = ATTR_REGESTRY[self.args.task_name]
         # normalizer = Normalization(_mean, _std, _normal_type)
-        loss = self.compute_loss(net_output[0][0], sample, reduce=reduce)
-        entropy=net_output[0][1]
+        loss = self.compute_loss(net_output[0], sample, reduce=reduce)
+        # entropy=net_output[0][1]
         if not self.training:
             logging_output = {
                 "loss": loss.data,
-                "predict": self.target_scaler.inverse_transform(net_output[0][0].view(-1, self.args.num_classes).data.cpu()).astype('float32'),
+                "predict": self.target_scaler.inverse_transform(net_output[0].view(-1, self.args.num_classes).data.cpu()).astype('float32'),
                 "target": self.target_scaler.inverse_transform((sample["target"]["finetune_target"].view(-1, self.args.num_classes))[select_atom==1].view(-1, self.args.num_classes).data.cpu()).astype('float32'),
                 "src_token": src_token,
                 "select_atom": select_atom,
                 "sample_size": sample_size,
                 "matid": sample["matid"],
                 "num_task": self.args.num_classes,
-                "entropy":entropy
+                # "entropy":entropy
                 # "encoder_rep": net_output[6],
             }
             # print("predict_output", self.target_scaler.inverse_transform(net_output[0].view(-1, self.args.num_classes).data.cpu()))
@@ -110,26 +110,26 @@ class AtomRegMSELoss(UnicoreLoss):
             src_tokens = torch.cat([log.get("src_token")[log.get("select_atom")==1] for log in logging_outputs], dim=0)
             src_tokens = src_tokens.detach().cpu().numpy()
             elemenets = set(src_tokens)
-            entropy_values = np.concatenate([log.get("entropy", torch.tensor([])).detach().cpu().numpy()for log in logging_outputs], axis=0)
-            if len(entropy_values) > 0:
-                mean_entropy = np.mean(entropy_values)
-                metrics.log_scalar(f"{split}_mean_entropy", mean_entropy, sample_size, round=4)
-            if len(elemenets) > 1:
-                for element in elemenets:
-                    element_targets = targets[src_tokens==element]
-                    element_predicts = predicts[src_tokens==element]
-                    r2, mae, mse, rmse = reg_metrics(element_targets, element_predicts)
-                    element_sample_size = len(src_tokens[src_tokens==element])
-                    metrics.log_scalar("{}_{}_r2".format(split, [element]), r2, element_sample_size, round=4)
-                    metrics.log_scalar("{}_{}_mae".format(split, [element]), mae, element_sample_size, round=4)
-                    metrics.log_scalar("{}_{}_mse".format(split, [element]), mse, element_sample_size, round=4)
-                    metrics.log_scalar("{}_{}_rmse".format(split, [element]), rmse, element_sample_size, round=4)
+            # entropy_values = np.concatenate([log.get("entropy", torch.tensor([])).detach().cpu().numpy()for log in logging_outputs], axis=0)
+            # if len(entropy_values) > 0:
+            #     mean_entropy = np.mean(entropy_values)
+            #     metrics.log_scalar(f"{split}_mean_entropy", mean_entropy, sample_size, round=4)
+            # if len(elemenets) > 1:
+            #     for element in elemenets:
+            #         element_targets = targets[src_tokens==element]
+            #         element_predicts = predicts[src_tokens==element]
+            #         r2, mae, mse, rmse = reg_metrics(element_targets, element_predicts)
+            #         element_sample_size = len(src_tokens[src_tokens==element])
+            #         metrics.log_scalar("{}_{}_r2".format(split, [element]), r2, element_sample_size, round=4)
+            #         metrics.log_scalar("{}_{}_mae".format(split, [element]), mae, element_sample_size, round=4)
+            #         metrics.log_scalar("{}_{}_mse".format(split, [element]), mse, element_sample_size, round=4)
+            #         metrics.log_scalar("{}_{}_rmse".format(split, [element]), rmse, element_sample_size, round=4)
                 
-                if len(entropy_values) > 0:
-                    element_entropy = entropy_values[src_tokens == element]
-                    if len(element_entropy) > 0:
-                        mean_element_entropy = np.mean(element_entropy)
-                        metrics.log_scalar(f"{split}_{element}_mean_entropy", mean_element_entropy, len(element_entropy), round=4)
+            #     if len(entropy_values) > 0:
+            #         element_entropy = entropy_values[src_tokens == element]
+            #         if len(element_entropy) > 0:
+            #             mean_element_entropy = np.mean(element_entropy)
+            #             metrics.log_scalar(f"{split}_{element}_mean_entropy", mean_element_entropy, len(element_entropy), round=4)
     
 @register_loss("atom_regloss_mae")   
 class AtomRegMAELoss(AtomRegMSELoss):
