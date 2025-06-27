@@ -2,6 +2,12 @@
 
 NMRnt：原始模型（参考文献：https://doi.org/10.1038/s43588-025-00783-z）
 
+论文详细信息如下：
+
+Title："Towards a Unified Benchmark and Framework for Deep Learning-Based Prediction of Nuclear Magnetic Resonance Chemical Shifts".
+
+Authors: Fanjie Xu, Wentao Guo, Feng Wang, Lin Yao, Hongshuai Wang, Fujie Tang*, Zhifeng Gao*, Linfeng Zhang, Weinan E, Zhong-Qun Tian, Jun Cheng* (* are corresponding authors).
+
 Baseline：在原模型下针对氟化学位移预测任务的微调模型
 
 Baseline_descriptor：加入原子描述符的baseline
